@@ -375,7 +375,13 @@ __LOGO__
       if ((err.code === 'OFFLINE' || err.status >= 500) && n < 2) { note('', '<p class="muted">Loading the poll…</p>'); setTimeout(function () { load(n + 1); }, n ? 5000 : 2000); return; }
       /* a remembered link that no longer works (taken off by the organizer): forget it and use the shared link */
       if ((err.code === 'NOT_FOUND' || err.status === 404) && V && (K || I) && !/[&]v=/.test('&' + h)) { try { localStorage.removeItem(MEKEY); } catch (e) {} V = ''; load(n); return; }
-      if (err.code === 'NOT_FOUND' || err.status === 404) note('bad', '<b>This link doesn’t match a poll.</b> It may have been replaced or the poll put away. Check with the person who sent it.');
+      if (err.code === 'NOT_FOUND' || err.status === 404) {
+        /* before the relay's answer routes are live, every link answers 404: say that plainly instead of "no such poll" */
+        fetch(RELAY_URL + '/huddle/group-poll/ready', { cache: 'no-store' }).then(function (r) { return r.ok; }, function () { return true; }).then(function (live) {
+          note(live ? 'bad' : 'warn', live ? '<b>This link doesn’t match a poll.</b> It may have been replaced or the poll put away. Check with the person who sent it.'
+            : '<b>Answering online isn’t open quite yet.</b> Please reply to the email you received with the days and times that work for you, and the organizer will add your answer.');
+        });
+      }
       else if (err.code === 'TOO_MANY') note('warn', 'Too many tries from here in a short time. Please wait a few minutes and reload.');
       else if (err.code === 'OFFLINE') note('bad', BLOCKED);
       else note('bad', 'The poll couldn’t be loaded just now. Please reload the page in a minute.');

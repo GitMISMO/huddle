@@ -2,6 +2,7 @@
 
 Newest first.
 
+- 2026-11-22: Until answering online is live, a poll link says so and asks people to reply to the organizer's email, instead of saying the link doesn't match a poll.
 - 2026-11-22: Twelve automatic checks on every upload; GitHub publishes the site only when they all pass. DEVELOPING.md guide added.
 - 2026-11-22: Help documents everything: what people see when they answer, knowing when someone answers, My Polls, the Admin Dashboard, links blocked by company networks, access and every connection.
 - 2026-11-22: System Health and the notices now say answering through links waits only on Perry's relay update (the projects.json setting is on).
