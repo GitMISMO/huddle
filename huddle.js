@@ -359,7 +359,7 @@ function renderList(app, all) {
     var b = el('button', '', x[1]); b.type = 'button'; b.setAttribute('aria-pressed', String(f === x[0])); b.onclick = function () { STATE.filter = x[0]; render(); }; seg.appendChild(b);
   });
   bar.appendChild(seg);
-  if (VOTES.off) bar.appendChild(el('span', 'mp-flag', 'Answering through links switches on once Perry finishes the relay setup. Until then, add answers by hand.'));
+  if (VOTES.off) bar.appendChild(el('span', 'mp-flag', 'Answering through links starts once Perry deploys his relay update. Until then, add answers by hand.'));
   app.appendChild(bar);
 
   var shown = list.filter(function (p) {
@@ -528,7 +528,7 @@ function renderPane() {
     if (edit) acts.appendChild(btn('Pick a Different Time', ICON.undo, 'ghost', function () { var q = clone(p); q.status = 'closed'; q.chosen = null; put(q, 'Took the chosen time off'); }));
     next.appendChild(acts);
   } else {
-    var nm = !tl.people.length ? (VOTES.off ? 'Send the poll. Answers through links switch on once Perry finishes the relay setup; until then, type answers in by hand.' : 'Send the poll: copy the link or email it from Outlook. You’ll get an email each time someone answers.')
+    var nm = !tl.people.length ? (VOTES.off ? 'Answers through links start once Perry deploys his relay update; until then, type answers in by hand.' : 'Send the poll: copy the link or email it from Outlook. You’ll get an email each time someone answers.')
       : s === 'closed' ? 'The poll is closed to new answers. Pick a time below, or reopen it.'
       : wait.length ? 'Waiting on ' + plural(wait.length, 'person', 'people') + ': ' + esc(wait.map(function (i) { return i.name || i.email; }).slice(0, 4).join(', ')) + (wait.length > 4 ? '…' : '') + '. When you’re ready, pick a time below.'
       : 'Everyone you invited has answered. Pick a time below.';
@@ -1123,7 +1123,7 @@ function renderHealth(app) {
   var t = el('section', 'panel');
   t.innerHTML = '<div class="panel-h"><h2>Connections</h2><div class="acts"></div></div><div class="gridwrap"><table class="guests"><thead><tr><th>What</th><th>Status</th><th>Where</th></tr></thead><tbody>' +
     row('Saving polls', DB.error ? false : HEALTH.lastSaveError ? false : true, DB.error ? 'Couldn’t read polls: ' + esc(DB.error) : HEALTH.lastSaveError ? 'Last save failed: ' + esc(HEALTH.lastSaveError) : 'Working. ' + plural(allN, 'poll') + ' loaded ' + esc(whenAgo(DB.at || Date.now())) + (HEALTH.lastSave ? '; last saved ' + esc(whenAgo(HEALTH.lastSave)) : '') + '.', 'Save relay, project <span class="kbd">huddle</span> → GitMISMO/huddle-data, data/polls.json') +
-    row('Answers through links', HEALTH.ready === null ? null : HEALTH.ready, HEALTH.ready ? 'Switched on. People can open poll links and answer.' : HEALTH.ready === false ? 'Not switched on yet. Perry turns this on with <span class="kbd">"groupPolls": true</span> in projects.json once relay request 12 is live. Until then, type answers in by hand.' : 'Checking…', 'Relay routes /group-poll/view and /group-poll/answer → votes/votes.json') +
+    row('Answers through links', HEALTH.ready === null ? null : HEALTH.ready, HEALTH.ready ? 'Switched on. People can open poll links and answer.' : HEALTH.ready === false ? 'Not live yet. It starts as soon as Perry deploys relay request 12 (the setting in projects.json is already on). Until then, type answers in by hand.' : 'Checking…', 'Relay routes /group-poll/view and /group-poll/answer → votes/votes.json') +
     row('Reading answers', VOTES.error ? false : VOTES.off ? null : true, VOTES.error ? 'Couldn’t read answers: ' + esc(VOTES.error) : VOTES.off ? 'Waiting on the same switch as above.' : 'Working. Checked ' + esc(whenAgo(VOTES.at || Date.now())) + ' and every minute while this page is open.', 'Relay route /group-poll/votes (signed in; only your own polls)') +
     row('Email when someone answers', HEALTH.ready ? true : null, 'Sent by the relay to the poll’s organizer through the platform’s Power Automate mail flow, unless the organizer turned it off on that poll. Never sent to the people answering.', 'Relay → Power Automate mail flow (MAIL_FLOW_URL)') +
     '</tbody></table></div>';
