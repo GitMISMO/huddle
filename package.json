@@ -1,0 +1,11 @@
+{
+  "name": "huddle",
+  "private": true,
+  "description": "Huddle: the checks that run on every upload",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

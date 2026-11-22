@@ -1,0 +1,50 @@
+# Huddle goes live only after its checks pass (tests/run.js). Every upload to main runs the checks;
+# if they pass, this publishes the site to resources.mismo.org/huddle/. If one fails, the site stays
+# on the version before, and GitHub emails whoever uploaded the change.
+# In an emergency: Actions > Huddle Checks and Publish > Run workflow, tick Skip the checks.
+name: Huddle Checks and Publish
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      skip_checks:
+        description: Skip the checks (emergency only)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: huddle-publish
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: ${{ !inputs.skip_checks }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+  publish:
+    needs: checks
+    if: ${{ always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (needs.checks.result == 'success' || (needs.checks.result == 'skipped' && inputs.skip_checks)) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

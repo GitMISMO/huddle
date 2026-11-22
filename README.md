@@ -18,6 +18,10 @@ No token, key or record is ever kept here.
 | `rail.js` | The left rail, search and theme button (the Scheduler's, with its own search). |
 | `poll.src.html` → `poll.html` | The page people open from the link to mark which times work. No sign-in. |
 | `build.py` | Builds `index.html` and `poll.html` and stamps the version. Run `python3 build.py` after any change. |
+| `tests/`, `package.json`, `.github/workflows/checks.yml` | The automatic checks and the publish step. |
+| `DEVELOPING.md` | The full guide for whoever works on Huddle. |
+
+**Working on it? Read `DEVELOPING.md` first.**
 
 Opened anywhere other than resources.mismo.org, or with `?preview=1`, both pages run as a **preview** with made-up
 polls and save nothing.
@@ -49,6 +53,11 @@ Codes are random, made in the organizer's browser (voters' by the relay), kept o
 (signed in). Switched on by `"groupPolls": true` on the `huddle` entry in projects.json. Until then the page
 says so on System Health and organizers type answers in by hand. The patch and its tests are in
 `_internal/relay-request-12/`.
+
+## Checks and Publishing
+
+Every upload to `main` runs twelve checks (`tests/`, `npm test`); GitHub publishes the site only if they all pass
+(`.github/workflows/checks.yml`). See `tests/README.md`.
 
 ## Updating
 
