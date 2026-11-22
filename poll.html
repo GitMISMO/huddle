@@ -1,0 +1,414 @@
+<!doctype html>
+<!--
+  Huddle: the page people open to mark which times work. resources.mismo.org/huddle/poll.html
+    #p=<poll>&k=<code>             the shared link the organizer sends to everyone
+    #p=<poll>&i=<invitee>.<code>   a personal link (name and email already filled in)
+    #p=<poll>&v=<voter>.<code>     the link handed back after answering, to change answers later
+  No sign-in. The codes live after the # so they are never sent to a server in the address, never appear in logs,
+  and are not passed on as a referrer. The page talks to two relay routes that need no sign-in
+  (POST /huddle/group-poll/view and /answer). The relay checks the code and hands back only what someone
+  answering needs: never an email address, and in a hidden poll no one else's name or answers.
+  Opened anywhere other than resources.mismo.org (or with ?preview=1): a preview with made-up times.
+  Storage key: tools:huddle:me:<poll> (this person's own edit link, so the shared link remembers them).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<title>Pick Times | MISMO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script>(function(){ try { var t = localStorage.getItem('mismo.portal.theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();</script>
+<style>
+:root{
+  --navy:#0d314c; --sky:#74bfeb; --navy-deep:#06202f; --navy-mid:#14486e; --sky-soft:#a9d8f3; --sky-wash:#e4f2fb;
+  --ground:#f1f6fa; --surface:#ffffff; --surface-2:#f6fafd; --surface-3:#e9f1f8;
+  --border:#d5e2ed; --border-strong:#adc4d6; --rule:#e5eef5;
+  --ink:#0d314c; --ink-2:#456179; --ink-3:#7794aa;
+  --good:#0f7b5c; --bad:#b3372c; --warn:#a2701a; --good-soft:#e2f3ec; --bad-soft:#fbe9e7; --warn-soft:#fbf1dc;
+  --free:#d9efe5; --some:#fbecc9; --busy:#f3d6d2; --unk:#eef3f7;
+  --btn:#0d314c; --btn-ink:#fff;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ground:#061722; --surface:#0d2837; --surface-2:#123143; --surface-3:#173c52;
+  --border:#1f4a63; --border-strong:#2f6688; --rule:#173547;
+  --ink:#e9f4fb; --ink-2:#a6c5d9; --ink-3:#7a9db4;
+  --good:#4fc79b; --bad:#f08579; --warn:#e0a83c; --good-soft:#123a30; --bad-soft:#3d1f1d; --warn-soft:#3a2e14; --sky-wash:#102f41;
+  --free:#16463a; --some:#4a3b17; --busy:#4b2422; --unk:#173547;
+  --btn:#74bfeb; --btn-ink:#06202f; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#061722; --surface:#0d2837; --surface-2:#123143; --surface-3:#173c52;
+  --border:#1f4a63; --border-strong:#2f6688; --rule:#173547;
+  --ink:#e9f4fb; --ink-2:#a6c5d9; --ink-3:#7a9db4;
+  --good:#4fc79b; --bad:#f08579; --warn:#e0a83c; --good-soft:#123a30; --bad-soft:#3d1f1d; --warn-soft:#3a2e14; --sky-wash:#102f41;
+  --free:#16463a; --some:#4a3b17; --busy:#4b2422; --unk:#173547;
+  --btn:#74bfeb; --btn-ink:#06202f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+.masthead{background:var(--navy);color:#fff}
+.masthead-in{display:flex;align-items:center;gap:14px;padding:11px 20px;max-width:1080px;margin:0 auto}
+.logoplate{background:#fff;border-radius:5px;padding:9px 13px;display:flex;align-items:center;line-height:0;flex:none}
+.logoplate .wordmark{height:22px;width:auto}
+.vrule{width:2px;align-self:stretch;background:var(--sky);border-radius:1px}
+.pagename{color:var(--sky);font-weight:700;font-size:15px;white-space:nowrap}
+@media(max-width:420px){.logoplate{padding:7px 10px}.logoplate .wordmark{height:18px}.masthead-in{gap:10px;padding:10px 14px}}
+.theme{margin-left:auto;appearance:none;border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:5px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.theme:hover{background:rgba(255,255,255,.1)}
+main{max-width:1080px;margin:0 auto;padding:26px 20px 90px}
+h1{font-size:26px;letter-spacing:-.012em;margin:0 0 4px;text-wrap:balance}
+.by{color:var(--ink-2);margin:0}
+.about{margin:10px 0 0;color:var(--ink);white-space:pre-line}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.fact{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-size:13.5px;color:var(--ink-2)}
+.fact svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-top:20px}
+.card-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.card h2{font-size:17px;margin:0}
+.card-h .r{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
+.muted{color:var(--ink-3)}
+.small{font-size:13px}
+select,textarea,input[type=text],input[type=email]{border:1px solid var(--border-strong);background:var(--surface);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
+select{width:auto;min-height:34px;padding:4px 8px}
+textarea{min-height:80px;resize:vertical}
+select:focus,textarea:focus,input:focus{outline:2px solid var(--sky);border-color:var(--sky)}
+.who{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.who label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--ink-2)}
+@media(max-width:560px){.who{grid-template-columns:1fr}}
+.help{color:var(--ink-2);margin:4px 0 4px;font-size:14px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-2);margin:6px 0 2px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-flex;width:24px;height:20px;border-radius:4px;align-items:center;justify-content:center}
+.mk{width:20px;height:18px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.legend .mk{width:14px;height:13px}
+.c-y{background:var(--free);color:var(--good)} .c-m{background:var(--some);color:var(--warn)} .c-n{background:var(--busy);color:var(--bad)} .c-0{background:var(--unk);color:var(--ink-3)}
+.day{margin-top:16px}
+.day h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin:0 0 4px}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 14px;padding:10px 0;border-top:1px solid var(--rule)}
+.opt .t{font-weight:600;font-size:15.5px}
+.opt .cnt{font-size:13px;color:var(--ink-2);display:block;font-weight:400}
+.opt .cnt b{color:var(--good)}
+.opt.full .t{color:var(--ink-3)}
+.opt.best .t::after{content:'Most popular';display:inline-block;margin-left:8px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--good-soft);color:var(--good);border-radius:3px;padding:1px 6px;vertical-align:2px}
+.tri{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden}
+.tri button{appearance:none;border:0;border-right:1px solid var(--border);background:var(--surface);padding:8px 15px;cursor:pointer;min-width:56px;display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;font-size:13px;font-weight:600}
+.tri button:last-child{border-right:0}
+.tri button.y{color:var(--good)} .tri button.m{color:var(--warn)} .tri button.n{color:var(--bad)}
+.tri button[aria-pressed="true"]{color:#fff}
+:root[data-theme="dark"] .tri button[aria-pressed="true"]{color:#06202f}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tri button[aria-pressed="true"]{color:#06202f} }
+.tri button[aria-pressed="true"].y{background:var(--good)} .tri button[aria-pressed="true"].m{background:var(--warn)} .tri button[aria-pressed="true"].n{background:var(--bad)}
+.tri button:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
+.tri button span{white-space:nowrap}
+.tri button .mk{display:block;flex:none}
+.fulltag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--border);border-radius:4px;padding:4px 10px}
+@media(max-width:560px){.opt{grid-template-columns:1fr}.tri{width:100%}.tri button{flex:1;min-width:0;padding:9px 6px}}
+.gridwrap{overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px}
+table.g{border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
+table.g th,table.g td{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:6px 7px;text-align:center;white-space:nowrap}
+table.g th:first-child,table.g td:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;min-width:150px;font-weight:600}
+table.g thead th{background:var(--surface-2);font-weight:600;font-size:12px;vertical-align:bottom}
+table.g thead th .d{display:block;color:var(--ink-3);font-weight:500}
+table.g td .cl{display:flex;align-items:center;justify-content:center;height:28px;border-radius:4px;min-width:70px}
+table.g tr.me td{background:var(--sky-wash)}
+table.g tr.me td:first-child{background:var(--sky-wash)}
+table.g tfoot td{background:var(--surface-2);font-weight:600}
+.btn{appearance:none;border:1px solid var(--btn);background:var(--btn);color:var(--btn-ink);border-radius:7px;padding:11px 22px;font-weight:600;font-size:15px;cursor:pointer;white-space:nowrap;min-width:max-content}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--border-strong);padding:6px 12px;font-size:13px}
+.note{padding:14px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:18px}
+.note.ok{border-color:var(--good);background:var(--good-soft)}
+.note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.note.warn{border-color:var(--warn);background:var(--warn-soft)}
+.note .big{display:block;font-size:20px;font-weight:700;margin:4px 0}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.sendrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.foot{margin-top:24px;color:var(--ink-3);font-size:13px}
+.preview{background:var(--warn-soft);border:1px solid var(--warn);border-radius:6px;padding:7px 12px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="mismo-logo" viewBox="0 0 708 108"><g transform="translate(0.000000,108.000000) scale(0.100000,-0.100000)" fill="var(--logo-body, #0f314c)"><path d="M5917 1065 c-169 -46 -279 -153 -335 -323 -21 -65 -25 -96 -25 -197
+0 -101 4 -132 25 -197 57 -172 168 -280 335 -323 84 -22 723 -22 808 0 222 58
+355 253 355 520 0 270 -132 459 -361 520 -74 20 -730 20 -802 0z m692 -320
+c57 -33 76 -84 76 -200 0 -116 -19 -167 -76 -200 -32 -19 -52 -20 -294 -20
+-297 0 -307 2 -346 83 -30 61 -31 198 -2 262 41 93 68 100 368 97 219 -2 243
+-4 274 -22z M0 545 l0 -515 225 0 225 0 2 296 3 296 116 -294 116 -293 197 0 198
+0 119 295 118 295 1 -297 0 -298 225 0 225 0 0 515 0 515 -337 -2 -338 -3
+-104 -264 c-80 -204 -107 -260 -113 -245 -5 10 -52 129 -106 264 l-98 245
+-337 3 -337 2 0 -515z M1892 1044 l-22 -15 0 -483 c0 -455 1 -484 18 -499 16 -15 48 -17
+246 -17 128 0 235 4 246 10 32 17 34 57 4 95 -33 44 -64 143 -64 206 l0 49
+203 0 c191 0 205 -1 222 -20 10 -11 34 -24 54 -30 49 -13 586 -13 612 0 22 12
+26 62 7 78 -8 6 -174 15 -413 21 -502 15 -549 23 -628 110 -43 48 -57 93 -57
+187 0 82 19 156 55 208 30 44 32 77 7 99 -27 25 -456 25 -490 1z M3716 1044 c-23 -22 -20 -31 19 -77 43 -49 78 -155 73 -218 l-3 -44
+-204 -3 c-194 -2 -205 -1 -218 17 -24 35 -78 41 -355 41 -255 0 -269 -1 -288
+-20 -27 -27 -26 -58 3 -70 12 -5 202 -14 422 -19 421 -12 476 -18 555 -62 92
+-51 132 -159 111 -299 -12 -77 -34 -129 -77 -179 -23 -28 -25 -36 -16 -57 l12
+-24 215 0 215 0 2 306 3 306 120 -303 120 -304 197 -3 196 -2 118 296 119 297
+3 -296 2 -297 225 0 225 0 0 515 0 515 -338 0 -337 0 -104 -265 c-58 -146
+-106 -263 -108 -261 -2 2 -50 120 -107 262 l-104 259 -340 3 c-300 2 -342 0
+-356 -14z"/></g><g transform="translate(0.000000,108.000000) scale(0.100000,-0.100000)" fill="var(--logo-s, #50a4db)"><path d="M2485 1046 c-44 -20 -111 -94 -136 -151 -27 -60 -37 -198 -20 -263
+13 -48 68 -115 114 -138 64 -34 162 -43 562 -55 239 -6 405 -15 413 -21 19
+-16 15 -66 -7 -78 -26 -13 -563 -13 -612 0 -20 6 -44 19 -54 30 -17 19 -31 20
+-222 20 l-203 0 0 -49 c0 -81 34 -172 86 -230 78 -87 31 -81 672 -81 l568 0
+46 29 c79 50 122 121 139 231 21 140 -19 248 -111 299 -79 44 -134 50 -555 62
+-220 5 -410 14 -422 19 -29 12 -30 43 -3 70 19 19 33 20 288 20 277 0 331 -6
+355 -41 13 -18 24 -19 218 -17 l204 3 3 44 c4 60 -31 168 -70 215 -17 21 -52
+52 -77 67 l-45 29 -550 0 c-440 -1 -557 -3 -581 -14z"/></g></symbol></defs></svg>
+<header class="masthead"><div class="masthead-in">
+  <span class="logoplate"><svg class="wordmark" role="img" aria-label="MISMO" viewBox="0 0 708 108"><use href="#mismo-logo"/></svg></span>
+  <span class="vrule"></span><span class="pagename">Huddle</span>
+  <button class="theme" id="theme" type="button">Dark Mode</button>
+</div></header>
+<main>
+  <div id="pv" class="preview" hidden><b>Preview.</b> Made-up times; nothing you send here is saved.</div>
+  <div id="state" role="status" aria-live="polite"><p class="muted">Loading the poll…</p></div>
+  <div id="wrap" hidden>
+    <h1 id="title"></h1>
+    <p class="by" id="by"></p>
+    <p class="about" id="about" hidden></p>
+    <div class="facts" id="facts"></div>
+    <div id="after"></div>
+    <form id="form" novalidate>
+      <section class="card">
+        <div class="card-h"><h2>Your Name</h2></div>
+        <div class="who">
+          <label><span>Name</span><input type="text" id="name" maxlength="80" autocomplete="name"></label>
+          <label id="emailwrap"><span>Email <span id="emailreq" class="muted"></span></span><input type="email" id="email" maxlength="200" autocomplete="email"></label>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2>Which Times Work for You?</h2><span class="r"><span>Show times in</span><select id="tz" aria-label="Time zone"></select></span></div>
+        <p class="help" id="howto"></p>
+        <div class="legend" id="legend"></div>
+        <div id="opts"></div>
+      </section>
+      <section class="card" id="peoplecard" hidden>
+        <div class="card-h"><h2>Everyone’s Answers</h2><span class="r" id="peoplecount"></span></div>
+        <div class="gridwrap"><table class="g" id="grid"></table></div>
+      </section>
+      <section class="card" id="commentcard">
+        <label for="comment"><h2 style="display:inline;font-size:17px">Comment</h2> <span class="muted small">(optional)</span></label>
+        <textarea id="comment" maxlength="1000" placeholder="Anything the organizer should know" style="margin-top:8px"></textarea>
+      </section>
+      <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" tabindex="-1" autocomplete="off"></label></div>
+      <div class="sendrow">
+        <button class="btn" type="submit" id="send">Send My Answers</button>
+        <span id="say" class="small" role="status" aria-live="polite"></span>
+      </div>
+      <p class="foot" id="foot">You can come back to this link to change your answers while the poll is open.</p>
+    </form>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var RELAY_URL = 'https://rgvdi67cg27o5kcmiytcqbqnrm0hmztx.lambda-url.us-east-1.on.aws';
+  var PREVIEW = location.hostname !== 'resources.mismo.org' || /[?&]preview=1\b/.test(location.search);
+  var h = location.hash.replace(/^#/, '');
+  function hv(k) { var m = new RegExp('(?:^|&)' + k + '=([A-Za-z0-9_.\\-]+)').exec(h); return m ? m[1] : ''; }
+  var P = hv('p'), K = hv('k'), I = hv('i'), V = hv('v');
+  if (PREVIEW && !P) { P = 'demo1abcde'; K = 'DemoShareCode123456789'; }
+  var MEKEY = 'tools:huddle:me:' + P;
+  if (!V) { try { V = localStorage.getItem(MEKEY) || ''; } catch (e) {} }
+  var started = Date.now(), D = null, ans = {};
+  var MARK = {
+    y: '<svg class="mk" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>',
+    m: '<svg class="mk" viewBox="0 0 32 24" aria-hidden="true"><path d="M7 3C3.5 7 3.5 17 7 21M25 3c3.5 4 3.5 14 0 18"/><path d="M10.5 12.5l4 4L22 8.5"/></svg>',
+    n: '<svg class="mk" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>'
+  };
+  var WORD = { y: 'Yes', m: 'If need be', n: 'No' };
+  var ZONES = [['America/New_York', 'Eastern'], ['America/Chicago', 'Central'], ['America/Denver', 'Mountain'], ['America/Phoenix', 'Arizona'], ['America/Los_Angeles', 'Pacific'], ['America/Anchorage', 'Alaska'], ['Pacific/Honolulu', 'Hawaii'], ['Europe/London', 'London'], ['Europe/Paris', 'Central Europe'], ['Asia/Kolkata', 'India'], ['UTC', 'UTC']];
+  var tz = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'; } catch (e) { return 'America/New_York'; } })();
+  if (!ZONES.some(function (z) { return z[0] === tz; })) ZONES.unshift([tz, tz.replace(/^.*\//, '').replace(/_/g, ' ')]);
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function dayOf(o) { return o.d ? new Date(o.d + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' }) : new Date(o.s).toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }); }
+  function shortDay(o) { return o.d ? new Date(o.d + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : new Date(o.s).toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' }); }
+  function time(t) { return new Date(t).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }); }
+  function abbr(t) { try { return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(new Date(t)).find(function (p) { return p.type === 'timeZoneName'; }).value; } catch (e) { return ''; } }
+  function range(o) { if (o.d) return 'All day'; var a = time(o.s), b = time(o.e); if (a.slice(-2) === b.slice(-2)) a = a.slice(0, -3); return a + '–' + b + ' ' + abbr(o.s); }
+  function start(o) { return o.d ? Date.parse(o.d + 'T00:00:00Z') : o.s; }
+  function note(kind, html) { $('state').innerHTML = html ? '<div class="note ' + (kind || '') + '">' + html + '</div>' : ''; }
+  function call(path, body) {
+    if (PREVIEW) return new Promise(function (res) { setTimeout(function () { res(sample(path, body)); }, 200); });
+    return fetch(RELAY_URL + '/huddle/group-poll/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store', referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || ('HTTP ' + r.status)); e.code = j.error; e.status = r.status; e.body = j; throw e; } return j; }); },
+        function () { var e = new Error('offline'); e.code = 'OFFLINE'; throw e; });
+  }
+  function sample(path, body) {
+    if (path === 'answer') return { ok: true, v: 'demo00000a.PreviewEditCode1234567890' };
+    var H = 3600000, b = new Date(); b.setUTCDate(b.getUTCDate() + ((8 - b.getUTCDay()) % 7 || 7)); b.setUTCHours(15, 0, 0, 0); var t = b.getTime();
+    var o = [[0, 0], [0, 3], [1, 2], [2, 0], [3, 4]].map(function (x, i) { var s = t + x[0] * 24 * H + x[1] * H; return { id: 'o' + (i + 1), s: s, e: s + H }; });
+    return { status: 'open', title: 'Commercial eNotes DWG: Kickoff Call', about: 'First call for the new Commercial eNotes Development Workgroup. We’ll go over the charter and pick a regular meeting time.', where: 'Zoom', duration: 60, tz: 'America/New_York',
+      organizer: 'Tessa Bocanegra', organizerEmail: 'tbocanegra@mismo.org',
+      settings: { ifNeedBe: true, hidden: false, oneVote: false, limit: 0, askEmail: 'required', comments: true, deadline: t + 5 * 24 * H },
+      options: o, chosen: null, full: [], count: 3,
+      people: [{ name: 'Pat Lee', answers: { o1: 'y', o2: 'y', o3: 'm', o4: 'n', o5: 'y' } }, { name: 'Dana Ortiz', answers: { o1: 'n', o2: 'y', o3: 'y', o4: 'y', o5: 'n' } }, { name: 'Lee Grant', answers: { o1: 'n', o2: 'y', o3: 'y', o4: 'n', o5: 'm' } }],
+      me: I ? { name: 'Sam Roe', email: 'sroe@exampleservicer.com', answers: null, comment: '', at: null } : null };
+  }
+  /* --- the theme button --- */
+  (function () {
+    var b = $('theme');
+    function cur() { var t = document.documentElement.getAttribute('data-theme'); return t || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    function paint() { b.textContent = cur() === 'dark' ? 'Light Mode' : 'Dark Mode'; }
+    b.onclick = function () { document.documentElement.setAttribute('data-theme', cur() === 'dark' ? 'light' : 'dark'); try { localStorage.setItem('mismo.portal.theme', cur()); } catch (e) {} paint(); };
+    paint();
+  })();
+  function opts() { return D.options.slice().sort(function (a, b) { return start(a) - start(b); }); }
+  function counts() {
+    var c = {}; D.options.forEach(function (o) { c[o.id] = { y: 0, m: 0, n: 0 }; });
+    D.people.forEach(function (p) { Object.keys(p.answers || {}).forEach(function (id) { if (c[id] && c[id][p.answers[id]] != null) c[id][p.answers[id]]++; }); });
+    Object.keys(ans).forEach(function (id) { if (c[id] && ans[id]) c[id][ans[id]]++; });
+    return c;
+  }
+  function paintTz() {
+    var s = $('tz'); s.innerHTML = '';
+    ZONES.forEach(function (z) { var o = document.createElement('option'); o.value = z[0]; o.textContent = z[1]; s.appendChild(o); });
+    s.value = tz; s.onchange = function () { tz = s.value; paintOpts(); paintGrid(); };
+  }
+  function paintOpts() {
+    var box = $('opts'); box.innerHTML = '';
+    var c = counts(), hidden = D.settings.hidden, kinds = D.settings.ifNeedBe ? ['y', 'm', 'n'] : ['y', 'n'], last = '', grp = null;
+    var best = 0; Object.keys(c).forEach(function (id) { var s = c[id].y * 2 + c[id].m; if (s > best) best = s; });
+    opts().forEach(function (o) {
+      var d = dayOf(o);
+      if (d !== last) { grp = document.createElement('div'); grp.className = 'day'; grp.innerHTML = '<h3>' + esc(d) + '</h3>'; box.appendChild(grp); last = d; }
+      var full = D.full.indexOf(o.id) >= 0 && !ans[o.id];
+      var row = document.createElement('div'); row.className = 'opt' + (full ? ' full' : '') + (!hidden && best && c[o.id].y * 2 + c[o.id].m === best && D.people.length ? ' best' : '');
+      var who = hidden ? '' : D.people.filter(function (p) { return p.answers && p.answers[o.id] === 'y'; }).map(function (p) { return p.name; });
+      row.innerHTML = '<span class="t">' + esc(range(o)) + (hidden ? '' : '<span class="cnt"' + (who.length ? ' title="' + esc(who.join(', ')) + '"' : '') + '><b>' + c[o.id].y + ' yes</b>' + (c[o.id].m ? ' · ' + c[o.id].m + ' if need be' : '') + (who.length && who.length <= 4 ? ' · ' + esc(who.join(', ')) : '') + '</span>') + '</span>';
+      if (full) { var f = document.createElement('span'); f.className = 'fulltag'; f.textContent = 'Full'; row.appendChild(f); }
+      else {
+        var tri = document.createElement('div'); tri.className = 'tri'; tri.setAttribute('role', 'group'); tri.setAttribute('aria-label', d + ' ' + range(o));
+        kinds.forEach(function (k) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = k; b.innerHTML = MARK[k] + '<span>' + WORD[k] + '</span>'; b.title = WORD[k];
+          b.setAttribute('aria-pressed', String(ans[o.id] === k));
+          b.onclick = function () {
+            if (ans[o.id] === k) delete ans[o.id]; else {
+              if (D.settings.oneVote && k !== 'n') Object.keys(ans).forEach(function (id) { if (ans[id] === 'y' || ans[id] === 'm') ans[id] = 'n'; });
+              ans[o.id] = k;
+            }
+            $('say').textContent = ''; paintOpts(); paintGrid();
+          };
+          tri.appendChild(b);
+        });
+        row.appendChild(tri);
+      }
+      grp.appendChild(row);
+    });
+  }
+  function paintGrid() {
+    if (D.settings.hidden || !D.people.length) { $('peoplecard').hidden = true; return; }
+    $('peoplecard').hidden = false;
+    $('peoplecount').textContent = D.people.length + (D.people.length === 1 ? ' person has' : ' people have') + ' answered';
+    var os = opts(), c = counts();
+    var t = '<thead><tr><th>Name</th>' + os.map(function (o) { return '<th><span class="d">' + esc(shortDay(o)) + '</span>' + esc(range(o).replace(/ [A-Z]{2,5}[+-]?\d*$/, '')) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    D.people.forEach(function (p) { t += '<tr><td>' + esc(p.name) + '</td>' + os.map(function (o) { var a = p.answers && p.answers[o.id]; return '<td><span class="cl ' + (a ? 'c-' + a : 'c-0') + '" title="' + esc(a ? WORD[a] : 'No answer') + '">' + (a ? MARK[a] : '—') + '</span></td>'; }).join('') + '</tr>'; });
+    var myName = $('name').value.trim() || 'You';
+    t += '<tr class="me"><td>' + esc(myName) + '</td>' + os.map(function (o) { var a = ans[o.id]; return '<td><span class="cl ' + (a ? 'c-' + a : 'c-0') + '">' + (a ? MARK[a] : '—') + '</span></td>'; }).join('') + '</tr>';
+    t += '</tbody><tfoot><tr><td>Yes</td>' + os.map(function (o) { return '<td>' + c[o.id].y + (c[o.id].m ? ' <span class="muted">(' + c[o.id].m + ')</span>' : '') + '</td>'; }).join('') + '</tr></tfoot>';
+    $('grid').innerHTML = t;
+  }
+  function facts() {
+    var f = [];
+    var I_ = { clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>', cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>' };
+    if (D.duration) f.push('<span class="fact">' + I_.clock + D.duration + ' minutes</span>');
+    if (D.where) f.push('<span class="fact">' + I_.pin + esc(D.where) + '</span>');
+    if (D.settings.deadline && D.status === 'open') f.push('<span class="fact">' + I_.cal + 'Please answer by ' + esc(new Date(D.settings.deadline).toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' })) + '</span>');
+    $('facts').innerHTML = f.join('');
+  }
+  function show(d) {
+    D = d; note('', '');
+    $('title').textContent = d.title; document.title = d.title + ' | MISMO';
+    $('by').textContent = (d.organizer ? d.organizer + ' is finding a time' : 'Finding a time') + (d.count ? ' · ' + d.count + (d.count === 1 ? ' person has' : ' people have') + ' answered' : '');
+    if (d.about) { $('about').textContent = d.about; $('about').hidden = false; }
+    facts(); $('wrap').hidden = false;
+    var ask = d.settings.askEmail;
+    $('emailwrap').hidden = ask === 'off'; $('emailreq').textContent = ask === 'optional' ? '(optional)' : '';
+    $('commentcard').hidden = !d.settings.comments;
+    if (d.status !== 'open') {
+      $('form').hidden = true;
+      if (d.status === 'scheduled' && d.chosen) {
+        $('after').innerHTML = '<div class="note ok">A time has been chosen<span class="big">' + esc(dayOf(d.chosen)) + ', ' + esc(range(d.chosen)) + '</span>Watch for the calendar invitation from ' + esc(d.organizer || 'the organizer') + '. Thank you for answering!</div>';
+      } else {
+        $('after').innerHTML = '<div class="note warn"><b>This poll is closed.</b> ' + esc(d.organizer || 'The organizer') + ' is no longer taking answers' + (d.organizerEmail ? '. Questions? Write to <a href="mailto:' + esc(d.organizerEmail) + '">' + esc(d.organizerEmail) + '</a>.' : '.') + '</div>';
+      }
+      return;
+    }
+    if (d.me) {
+      $('name').value = d.me.name || ''; $('email').value = d.me.email || ''; $('comment').value = d.me.comment || '';
+      if (d.me.answers) { ans = {}; Object.keys(d.me.answers).forEach(function (k) { ans[k] = d.me.answers[k]; }); }
+      if (d.me.at) $('after').innerHTML = '<div class="note ok">You answered on ' + esc(new Date(d.me.at).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })) + '. Change anything below and send again.</div>';
+    }
+    $('howto').innerHTML = 'Tap <b>Yes</b> for every time that works' + (d.settings.ifNeedBe ? ', <b>If need be</b> for times that could work if they have to,' : '') + ' and <b>No</b> for the rest.' + (d.settings.oneVote ? ' Pick one time only.' : '') + (d.settings.limit ? ' Each time takes up to ' + d.settings.limit + (d.settings.limit === 1 ? ' person' : ' people') + '.' : '') + ' Times show in your own time zone.';
+    $('legend').innerHTML = '<span><i class="c-y">' + MARK.y + '</i> Yes</span>' + (d.settings.ifNeedBe ? '<span><i class="c-m">' + MARK.m + '</i> If need be</span>' : '') + '<span><i class="c-n">' + MARK.n + '</i> No</span>';
+    $('name').oninput = paintGrid;
+    paintTz(); paintOpts(); paintGrid();
+  }
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var say = $('say'); say.style.color = 'var(--bad)';
+    var name = $('name').value.trim(), email = $('email').value.trim();
+    if (!name) { say.textContent = 'Please add your name.'; $('name').focus(); return; }
+    if (D.settings.askEmail === 'required' && !email) { say.textContent = 'Please add your email address.'; $('email').focus(); return; }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { say.textContent = 'That email address doesn’t look right.'; $('email').focus(); return; }
+    var picked = Object.keys(ans).filter(function (k) { return ans[k]; });
+    if (!picked.length) { say.textContent = 'Mark at least one time.'; return; }
+    /* anything left unmarked counts as no, as Doodle does */
+    var out = {}; D.options.forEach(function (o) { if (D.full.indexOf(o.id) < 0 || ans[o.id]) out[o.id] = ans[o.id] || 'n'; });
+    var body = { p: P, name: name, email: D.settings.askEmail === 'off' ? '' : email, answers: out, comment: D.settings.comments ? $('comment').value.trim() : '', startedAt: started, website: $('website').value };
+    if (V) body.v = V; if (I) body.i = I; if (K) body.k = K;
+    $('send').disabled = true; say.style.color = ''; say.textContent = 'Sending…';
+    call('answer', body).then(function (r) {
+      if (r && r.v) { V = r.v; try { localStorage.setItem(MEKEY, V); } catch (e2) {} }
+      var editLink = location.origin + location.pathname + '#p=' + P + (V ? '&v=' + V : (K ? '&k=' + K : '&i=' + I));
+      $('form').hidden = true; $('after').innerHTML = '';
+      var y = Object.keys(out).filter(function (k) { return out[k] === 'y'; }).length;
+      note('ok', '<b>Thank you, ' + esc(name.split(/\s+/)[0]) + '. Your answers are in.</b> ' + (y ? y + (y === 1 ? ' time works' : ' times work') + ' for you. ' : '') +
+        esc(D.organizer || 'The organizer') + ' will send a calendar invitation once a time is picked.' +
+        '<div class="sendrow"><button class="btn ghost" type="button" id="again">Change My Answers</button><button class="btn ghost" type="button" id="cplink">Copy My Link</button></div>' +
+        '<p class="small muted" style="margin:10px 0 0">Keep your link to change your answers later. This browser remembers it too.</p>' + (PREVIEW ? '<p class="small"><b>Preview:</b> nothing was saved.</p>' : ''));
+      $('again').onclick = function () { $('state').innerHTML = ''; load(0); };
+      $('cplink').onclick = function () { var b = this; (navigator.clipboard ? navigator.clipboard.writeText(editLink) : Promise.reject()).then(function () { b.textContent = 'Copied'; }, function () { prompt('Copy your link:', editLink); }); };
+      window.scrollTo(0, 0);
+    }, function (err) {
+      $('send').disabled = false; say.style.color = 'var(--bad)';
+      if (err.code === 'FULL') { (err.body.options || []).forEach(function (id) { if (D.full.indexOf(id) < 0) D.full.push(id); delete ans[id]; }); paintOpts(); paintGrid(); }
+      say.textContent = err.code === 'TOO_MANY' ? 'Several answers were just sent from here. Please try again in a few minutes.' :
+        err.code === 'CLOSED' ? 'This poll has just closed, so answers aren’t being taken.' :
+        err.code === 'FULL' ? 'Someone just took the last place at a time you picked. It’s marked Full now; pick another.' :
+        err.code === 'INVALID' ? ((err.body && err.body.problems || []).join(' ') || 'Please check your answers.') :
+        err.code === 'OFFLINE' ? 'Couldn’t connect. Press Send again; if it still won’t go, your network may be blocking it, so reply to the organizer’s email with the times that work.' :
+        'Your answers couldn’t be saved just now. Please try again in a minute.';
+    });
+  });
+  if (!P || !(K || I || V)) { note('bad', '<b>This link isn’t complete.</b> Open it straight from the email or message you received.'); return; }
+  if (PREVIEW) $('pv').hidden = false;
+  var BLOCKED = '<b>This page couldn’t reach MISMO’s poll service from your network.</b> Some company networks block it. Reply to the organizer’s email with the days and times that work for you, or open the link on your phone using mobile data instead of the office Wi-Fi.';
+  function load(n) {
+    var body = { p: P }; if (V) body.v = V; if (I) body.i = I; if (K) body.k = K;
+    call('view', body).then(function (d) { $('form').hidden = false; show(d); }, function (err) {
+      if ((err.code === 'OFFLINE' || err.status >= 500) && n < 2) { note('', '<p class="muted">Loading the poll…</p>'); setTimeout(function () { load(n + 1); }, n ? 5000 : 2000); return; }
+      /* a remembered link that no longer works (taken off by the organizer): forget it and use the shared link */
+      if ((err.code === 'NOT_FOUND' || err.status === 404) && V && (K || I) && !/[&]v=/.test('&' + h)) { try { localStorage.removeItem(MEKEY); } catch (e) {} V = ''; load(n); return; }
+      if (err.code === 'NOT_FOUND' || err.status === 404) note('bad', '<b>This link doesn’t match a poll.</b> It may have been replaced or the poll put away. Check with the person who sent it.');
+      else if (err.code === 'TOO_MANY') note('warn', 'Too many tries from here in a short time. Please wait a few minutes and reload.');
+      else if (err.code === 'OFFLINE') note('bad', BLOCKED);
+      else note('bad', 'The poll couldn’t be loaded just now. Please reload the page in a minute.');
+    });
+  }
+  load(0);
+})();
+</script>
+</body>
+</html>

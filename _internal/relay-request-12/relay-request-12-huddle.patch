@@ -1,0 +1,288 @@
+--- index.orig.mjs	2026-11-22 08:13:06.288924517 -0700
++++ index.mjs	2026-11-22 08:38:10.315045426 -0700
+@@ -381,7 +381,9 @@
+    * Term and hub-requests' Submit an Idea (sending and attaching files). Not MISMO Link's signing pages (Perry, 13 Nov
+    * 2026), and no route behind a sign-in; every other route keeps the one origin. Each entry is an https address with no
+    * path and no trailing slash, at most 5; anything else is ignored. Absent means the project's own site only, as before,
+-   * so it ships switched off and is turned on, or changed when the site moves, by a reviewed commit to projects.json. */
++   * so it ships switched off and is turned on, or changed when the site moves, by a reviewed commit to projects.json.
++   * Relay request 12 (Jonna, Nov 2026). 'groupPolls': true switches on Huddle's respondent routes (see HUDDLE).
++   * Off unless exactly true, and only for the huddle project. */
+   const formOrigins = Array.isArray(p.formOrigins)
+     ? p.formOrigins.filter(o => typeof o === 'string').map(o => o.trim().toLowerCase())
+         .filter(o => /^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(o)).slice(0, 5)
+@@ -392,7 +394,7 @@
+       if (DASHBOARD_ID.test(file) && Array.isArray(all)) membersOnly[file] = all.filter(e => typeof e === 'string' && e.includes('@')).map(e => e.trim().toLowerCase());
+     }
+   }
+-  return { key, repo: p.repo, branch: p.branch || 'main', origin: p.origin, writable, readable, ask: p.ask === true, askMaxTokens: askTokensOf(p.askMaxTokens), guestLinks: p.guestLinks === true, formOrigins, membersOnly };
++  return { key, repo: p.repo, branch: p.branch || 'main', origin: p.origin, writable, readable, ask: p.ask === true, askMaxTokens: askTokensOf(p.askMaxTokens), guestLinks: p.guestLinks === true, groupPolls: p.groupPolls === true, formOrigins, membersOnly };
+ }
+ 
+ /* Relay request 11: the public forms that may be sent from a website the project lists in formOrigins. */
+@@ -2409,6 +2411,233 @@
+   return respond(200, { ok: true });
+ }
+ 
++
++/* =====================================================================================
++ * HUDDLE: DOODLE-STYLE GROUP POLLS (relay request 12; Jonna Critchley, Nov 2026)
++ * MISMO's own replacement for Doodle, for facilitators and staff (resources.mismo.org/huddle/). The organizer
++ * offers some times and sends the poll from their own Outlook; people mark which times work; the organizer picks one
++ * and sends their own calendar invite. Nothing reads anyone's calendar, and nothing is ever emailed to a respondent.
++ *
++ * Three routes with no sign-in, for poll.html:
++ *   GET  /huddle/group-poll/ready                                   -> { ok: true }, so the staff page knows links work
++ *   POST /huddle/group-poll/view   { p, k?, i?, v? }                -> what a respondent needs to see
++ *   POST /huddle/group-poll/answer { p, k?, i?, v?, name, email, answers, comment, startedAt, website }
++ * and one behind the sign-in, for the staff page:
++ *   GET  /huddle/group-poll/votes                                   -> the answers to the caller's own polls
++ *
++ * p is the poll id. A respondent gets in with ONE of:
++ *   k  the poll's shared link code (anyone the organizer sent the shared link to; like Doodle's link),
++ *   i  "<invitee id>.<code>", a personal link the organizer made for one named person,
++ *   v  "<voter id>.<code>", handed back by /answer so the same person can change their answers later.
++ * Every code is random, at least 16 characters, kept only in the PRIVATE data repository (a voter's code only as a
++ * sha-256 hash), compared in constant time, and travels in the link's #fragment, never in an address a server logs.
++ * A wrong code answers exactly as a missing poll does (404 NOT_FOUND).
++ *
++ * Where things live (the data repository named by the project):
++ *   data/polls.json  {docs:{<id>:{...}}}   the polls, members-only (see MEMBERS-ONLY FILES): written by the staff page.
++ *                                          Read here, never written here.
++ *   votes/votes.json {docs:{<poll id>:{voters:{<voter id>:{...}}}}}   the answers. Written ONLY by /answer. Outside
++ *                                          the project's writable and readable folders, so no page can read or write it
++ *                                          except through these routes; the staff page reads it through /votes.
++ * Keeping answers in their own file means a save from the staff page can never land on an answer it hasn't seen
++ * (the reason the Scheduler's links shipped switched off).
++ *
++ * view never returns an email address, a code, the invitee list, the log or anything the organizer keeps for
++ * themselves. In a hidden poll it returns no one else's name or answer at all, only which times are full.
++ * answer only ever adds or changes that one respondent's own answer.
++ * Against misuse, as the Scheduler's routes: only from the project's own site (Origin required); a field people never
++ * see (filled means a robot: answered as if accepted, kept nowhere); at least 2 seconds between the page opening and
++ * sending; per running copy, 120 views and 20 answers an hour from one address and 400 answers an hour in all;
++ * 16 kB at most; every field checked.
++ * The organizer is emailed (the same Power Automate mail flow) when someone answers, unless they turned that off.
++ * SWITCHED OFF until the huddle entry in projects.json says "groupPolls": true; until then every route here
++ * answers 404 NOT_FOUND, exactly as a relay without them does.
++ * ===================================================================================== */
++const GP_PROJECT = 'huddle', GP_POLLS = 'data/polls.json', GP_VOTES = 'votes/votes.json';
++const GP_SITE = 'https://resources.mismo.org/huddle/';
++const GP_VIEW_PER_IP = 120, GP_ANS_PER_IP = 20, GP_ANS_ALL = 400, GP_MIN_MS = 2000, GP_MAX_BYTES = 16_000;
++const gpSeen = { view: new Map(), ans: new Map(), all: [] };
++function gpAllowed(kind, ip, now) {
++  const hour = now - 3_600_000, map = gpSeen[kind], cap = kind === 'view' ? GP_VIEW_PER_IP : GP_ANS_PER_IP;
++  for (const [k, v] of map) { const keep = v.filter(t => t > hour); if (keep.length) map.set(k, keep); else map.delete(k); }
++  if (kind === 'ans') { gpSeen.all = gpSeen.all.filter(t => t > hour); if (gpSeen.all.length >= GP_ANS_ALL) return false; }
++  const mine = map.get(ip) || [];
++  if (mine.length >= cap) return false;
++  mine.push(now); map.set(ip, mine); if (kind === 'ans') gpSeen.all.push(now); return true;
++}
++export function __resetGroupPollLimits() { gpSeen.view.clear(); gpSeen.ans.clear(); gpSeen.all = []; }
++const gpSame = (a, b) => timingSafeEqual(createHash('sha256').update(String(a)).digest(), createHash('sha256').update(String(b)).digest());
++const gpHash = s => createHash('sha256').update('huddle:' + String(s)).digest('hex');
++const GP_CODE = /^[A-Za-z0-9_-]{16,64}$/, GP_PAIR = /^([a-z0-9]{1,16})\.([A-Za-z0-9_-]{16,64})$/;
++const gpStr = (v, max) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim().slice(0, max);
++/* the poll's status as a respondent sees it: a passed deadline closes it */
++function gpStatus(poll, now) {
++  if (poll.archived) return 'gone';
++  if (poll.status === 'scheduled') return 'scheduled';
++  if (poll.status === 'closed') return 'closed';
++  const dl = Number(poll.settings && poll.settings.deadline);
++  if (Number.isFinite(dl) && dl > 0 && now > dl) return 'closed';
++  return 'open';
++}
++/* which poll and which person a request names, or null. votes is the votes file (may be null for /view before reading). */
++function gpFind(pollsFile, votesFile, b) {
++  if (typeof b.p !== 'string' || !/^[a-z0-9]{6,24}$/.test(b.p)) return null;
++  const poll = pollsFile && pollsFile.docs && pollsFile.docs[b.p];
++  if (!poll || typeof poll !== 'object' || poll.archived) return null;
++  const voters = (votesFile && votesFile.docs && votesFile.docs[b.p] && votesFile.docs[b.p].voters) || {};
++  let voterId = null, inviteeId = null, ok = false;
++  if (typeof b.v === 'string') {
++    const m = GP_PAIR.exec(b.v); const vt = m && voters[m[1]];
++    if (vt && typeof vt.codeHash === 'string' && gpSame(vt.codeHash, gpHash(m[2]))) { voterId = m[1]; ok = true; }
++  }
++  if (typeof b.i === 'string') {
++    const m = GP_PAIR.exec(b.i); const inv = m && Array.isArray(poll.invitees) && poll.invitees.find(x => x && x.id === m[1] && !x.removed);
++    if (inv && typeof inv.code === 'string' && gpSame(inv.code, m[2])) {
++      inviteeId = inv.id; ok = true;
++      if (!voterId) { const mine = Object.entries(voters).find(([, x]) => x && x.invitee === inv.id); if (mine) voterId = mine[0]; }
++    }
++  }
++  if (!ok && typeof b.k === 'string' && GP_CODE.test(b.k) && typeof poll.code === 'string' && gpSame(poll.code, b.k)) ok = true;
++  if (!ok) return null;
++  return { poll, voters, voterId, inviteeId };
++}
++const gpIp = event => (event.requestContext && event.requestContext.http && event.requestContext.http.sourceIp) || 'unknown';
++function gpPre(event, proj, headers, kind) {
++  if (headers['origin'] !== proj.origin) return { error: respond(403, { error: 'ORIGIN', message: 'This page only works from MISMO’s own site.' }) };
++  if (String(event.body || '').length > GP_MAX_BYTES) return { error: respond(413, { error: 'TOO_LARGE' }) };
++  const parsed = parseBody(event); if (parsed.error) return { error: parsed.error };
++  if (!gpAllowed(kind, gpIp(event), Date.now())) return { error: respond(429, { error: 'TOO_MANY', message: 'Too many tries from here. Please wait a few minutes.' }) };
++  return { body: parsed.body || {} };
++}
++function gpOptions(poll) {
++  return (Array.isArray(poll.options) ? poll.options : []).filter(o => o && typeof o.id === 'string' && /^[a-z0-9]{1,16}$/.test(o.id))
++    .filter(o => (Number.isFinite(o.s) && Number.isFinite(o.e)) || (typeof o.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.d)))
++    .map(o => o.d ? { id: o.id, d: o.d } : { id: o.id, s: o.s, e: o.e });
++}
++/* everyone who has answered, as the organizer sees them: link answers plus any the organizer typed in, less the removed */
++function gpEveryone(poll, voters) {
++  const gone = new Set(Array.isArray(poll.hiddenVoters) ? poll.hiddenVoters : []);
++  const out = [];
++  for (const [id, x] of Object.entries(voters || {})) if (x && !gone.has(id)) out.push({ id, ...x });
++  const manual = poll.manual && typeof poll.manual === 'object' ? poll.manual : {};
++  for (const [id, x] of Object.entries(manual)) if (x && !gone.has(id)) out.push({ id, ...x, manual: true });
++  return out;
++}
++const gpYes = (x, id, maybeCounts) => x && x.answers && (x.answers[id] === 'y' || (maybeCounts && x.answers[id] === 'm'));
++function gpFull(poll, everyone, exceptId) {
++  const limit = Number(poll.settings && poll.settings.limit);
++  if (!Number.isFinite(limit) || limit < 1) return [];
++  return gpOptions(poll).filter(o => everyone.filter(x => x.id !== exceptId && gpYes(x, o.id, true)).length >= limit).map(o => o.id);
++}
++async function gpRead(proj) {
++  const [pf, vf] = await Promise.all([readFile(proj.repo, proj.branch || 'main', GP_POLLS), readFile(proj.repo, proj.branch || 'main', GP_VOTES)]);
++  if ((pf.status !== 200 && pf.status !== 404) || (vf.status !== 200 && vf.status !== 404)) return { error: true };
++  return { polls: pf.data, votes: vf.data };
++}
++async function gpView(event, proj, headers) {
++  const pre = gpPre(event, proj, headers, 'view'); if (pre.error) return pre.error;
++  const f = await gpRead(proj); if (f.error) return respond(502, { error: 'UNREADABLE', message: 'This poll couldn’t be loaded just now.' });
++  const hit = gpFind(f.polls, f.votes, pre.body);
++  if (!hit) return respond(404, { error: 'NOT_FOUND' });
++  const { poll, voters, voterId, inviteeId } = hit, now = Date.now(), status = gpStatus(poll, now), s = poll.settings || {};
++  const everyone = gpEveryone(poll, voters);
++  const options = gpOptions(poll);
++  const mine = voterId && voters[voterId] ? voters[voterId] : null;
++  const inv = inviteeId ? poll.invitees.find(x => x.id === inviteeId) : null;
++  return respond(200, {
++    status, title: gpStr(poll.title, 200) || 'Meeting', about: gpStr(poll.about, 3000), where: gpStr(poll.where, 300),
++    duration: Number(poll.duration) || 30, tz: gpStr(poll.tz, 60) || 'America/New_York',
++    organizer: gpStr(poll.ownerName, 120), organizerEmail: gpStr(poll.owner, 200),
++    settings: { ifNeedBe: s.ifNeedBe !== false, hidden: s.hidden === true, oneVote: s.oneVote === true, limit: Number(s.limit) > 0 ? Number(s.limit) : 0,
++      askEmail: s.askEmail === 'off' ? 'off' : s.askEmail === 'optional' ? 'optional' : 'required', comments: s.comments !== false, deadline: Number(s.deadline) > 0 ? Number(s.deadline) : null },
++    options, chosen: status === 'scheduled' ? options.find(o => o.id === poll.chosen) || null : null,
++    /* other people: names and answers only, never emails; none at all in a hidden poll */
++    people: s.hidden === true ? [] : everyone.filter(x => x.id !== voterId).map(x => ({ name: gpStr(x.name, 80), answers: x.answers || {}, comment: s.comments !== false ? gpStr(x.comment, 1000) : '' })),
++    count: everyone.length,
++    full: gpFull(poll, everyone, voterId),
++    me: mine ? { name: gpStr(mine.name, 80), email: gpStr(mine.email, 200), answers: mine.answers || {}, comment: gpStr(mine.comment, 1000), at: mine.at || null }
++      : inv ? { name: gpStr(inv.name, 80), email: gpStr(inv.email, 200), answers: null, comment: '', at: null } : null
++  });
++}
++async function gpAnswer(event, proj, headers) {
++  const pre = gpPre(event, proj, headers, 'ans'); if (pre.error) return pre.error;
++  const b = pre.body, now = Date.now(), started = Number(b.startedAt);
++  if (String(b.website || '').trim() || !Number.isFinite(started) || now - started < GP_MIN_MS) return respond(200, { ok: true });   /* a robot: as if accepted, kept nowhere */
++  const name = gpStr(b.name, 80), email = gpStr(b.email, 200).toLowerCase(), comment = gpStr(b.comment, 1000);
++  const problems = [];
++  if (!name) problems.push('Please add your name.');
++  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push('That email address doesn’t look right.');
++  if (String(b.comment ?? '').length > 1000) problems.push('The comment is too long (1,000 characters at most).');
++  const raw = b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers) ? b.answers : {};
++  if (problems.length) return respond(400, { error: 'INVALID', problems });
++  /* read the poll first, outside the write, so most refusals cost no write at all */
++  const f = await gpRead(proj); if (f.error) return respond(502, { error: 'NOT_SAVED', message: 'Your answers couldn’t be saved just now. Please try again in a minute.' });
++  const first = gpFind(f.polls, f.votes, b);
++  if (!first) return respond(404, { error: 'NOT_FOUND' });
++  const poll = first.poll, s = poll.settings || {}, st = gpStatus(poll, now);
++  if (st !== 'open') return respond(409, { error: 'CLOSED', status: st, message: st === 'scheduled' ? 'A time has already been chosen for this meeting.' : 'This poll is closed.' });
++  if (s.askEmail !== 'off' && s.askEmail !== 'optional' && !email) return respond(400, { error: 'INVALID', problems: ['Please add your email address.'] });
++  const known = new Set(gpOptions(poll).map(o => o.id)), answers = {};
++  for (const [id, a] of Object.entries(raw)) {
++    if (!known.has(id)) continue;
++    if (a === 'y' || a === 'n' || (a === 'm' && s.ifNeedBe !== false)) answers[id] = a;
++  }
++  if (s.oneVote === true && Object.values(answers).filter(a => a === 'y' || a === 'm').length > 1) return respond(400, { error: 'INVALID', problems: ['This poll takes one choice only.'] });
++  if (!Object.values(answers).length) return respond(400, { error: 'INVALID', problems: ['Mark at least one time.'] });
++  let result = null, refused = null;
++  const w = await updateRepoJson(proj.repo, proj.branch || 'main', GP_VOTES, d => {
++    d.docs = d.docs && typeof d.docs === 'object' && !Array.isArray(d.docs) ? d.docs : {};
++    const hit = gpFind(f.polls, d, b);                 /* the voter is looked up again in the copy being written */
++    if (!hit) { refused = respond(404, { error: 'NOT_FOUND' }); throw new Error('stop'); }
++    const doc = d.docs[b.p] = d.docs[b.p] && typeof d.docs[b.p] === 'object' ? d.docs[b.p] : {};
++    doc.voters = doc.voters && typeof doc.voters === 'object' ? doc.voters : {};
++    const everyone = gpEveryone(poll, doc.voters);
++    const full = new Set(gpFull(poll, everyone, hit.voterId));
++    const over = Object.entries(answers).filter(([id, a]) => (a === 'y' || a === 'm') && full.has(id)).map(([id]) => id);
++    if (over.length) { refused = respond(409, { error: 'FULL', options: over, message: 'Someone just took the last place at that time. Pick another.' }); throw new Error('stop'); }
++    let id = hit.voterId, code = null, isNew = false;
++    if (!id) {
++      do { id = randomBytes(6).toString('hex').slice(0, 10); } while (doc.voters[id] || (poll.manual && poll.manual[id]));
++      code = randomBytes(18).toString('base64url'); isNew = true;
++    }
++    const prev = doc.voters[id] || {};
++    doc.voters[id] = { name, email, answers, comment: s.comments === false ? '' : comment, at: now, created: prev.created || now,
++      invitee: hit.inviteeId || prev.invitee || null, codeHash: code ? gpHash(code) : prev.codeHash };
++    doc.updatedAt = now;
++    result = { id, code, isNew, everyone: gpEveryone(poll, doc.voters) };
++    return d;
++  }, `Someone answered a Huddle poll (${b.p})`).catch(() => (refused ? { refused: true } : { error: 'THROWN' }));
++  if (refused) return refused;
++  if (!w || w.error) return respond(502, { error: 'NOT_SAVED', message: 'Your answers couldn’t be saved just now. Please try again in a minute.' });
++  /* the organizer hears about it, unless they said not to; a failed email can't undo the save, so it is only logged */
++  if (s.notify !== false && typeof poll.owner === 'string' && /@/.test(poll.owner)) {
++    const opts = gpOptions(poll), yes = Object.values(answers).filter(a => a === 'y').length, mb = Object.values(answers).filter(a => a === 'm').length;
++    const answeredInv = new Set(result.everyone.map(x => x.invitee).filter(Boolean));
++    const waiting = (Array.isArray(poll.invitees) ? poll.invitees : []).filter(x => x && !x.removed && !answeredInv.has(x.id)).map(x => x.name || x.email);
++    const t = `Hello ${String(poll.ownerName || '').split(' ')[0] || 'there'},\n\n${name}${result.isNew ? ' answered' : ' changed their answers to'} your poll “${poll.title}”: ${yes} of ${opts.length} work${mb ? ', ' + mb + ' if need be' : ''}.` +
++      (comment && s.comments !== false ? `\n\nTheir comment: “${comment}”` : '') +
++      `\n\n${result.everyone.length} ${result.everyone.length === 1 ? 'person has' : 'people have'} answered so far.` +
++      (waiting.length ? ` Still waiting on: ${waiting.join(', ')}.` : '') +
++      `\n\nSee everyone’s answers in Huddle:\n${GP_SITE}#p=${b.p}`;
++    await sendMail({ kind: 'huddle-answer', to: poll.owner, subject: `${name} answered: ${poll.title}`, text: t, html: htmlOf(t) }).catch(e => console.warn('huddle mail:', e && e.message));
++  }
++  return respond(200, { ok: true, v: result.code ? `${result.id}.${result.code}` : null });
++}
++/* GET /huddle/group-poll/votes, signed in: the answers to every poll the caller is a member of (everything, for
++ * someone on the polls file's see-all list). Never the codes. View as sees none, as members-only files. */
++async function gpVotes(proj, who) {
++  const me = lowerOf(who.email), all = ((proj.membersOnly || {}).polls || []).includes(me);
++  if (who.viewAs) return respond(200, { docs: {}, hidden: true });
++  const f = await gpRead(proj); if (f.error) return respond(502, { error: 'UNREADABLE' });
++  const polls = docsOf(f.polls), votes = docsOf(f.votes), out = {};
++  for (const [id, p] of Object.entries(polls)) {
++    if (!all && !membersOf(p).includes(me)) continue;
++    const v = votes[id] && votes[id].voters ? votes[id].voters : {};
++    out[id] = { voters: Object.fromEntries(Object.entries(v).map(([k, x]) => { const { codeHash, ...rest } = x || {}; return [k, rest]; })), updatedAt: (votes[id] && votes[id].updatedAt) || null };
++  }
++  return respond(200, { docs: out });
++}
++
+ export async function handler(event, context) {
+   currentContext = context || null;
+   const method = (event.requestContext?.http?.method || 'GET').toUpperCase();
+@@ -2477,6 +2706,12 @@
+     if (method !== 'POST') return respond(405, { error: 'METHOD' });
+     return subPath === '/poll/view' ? schedView(event, proj, headers) : schedAnswer(event, proj, headers);
+   }
++  if (subPath === '/group-poll/ready' || subPath === '/group-poll/view' || subPath === '/group-poll/answer') {   /* relay request 12: Huddle's respondents, no sign-in */
++    if (!proj || proj.key !== GP_PROJECT || !proj.groupPolls) return respond(404, { error: 'NOT_FOUND' });
++    if (method === 'GET' && subPath === '/group-poll/ready') return respond(200, { ok: true });
++    if (method !== 'POST' || subPath === '/group-poll/ready') return respond(405, { error: 'METHOD' });
++    return subPath === '/group-poll/view' ? gpView(event, proj, headers) : gpAnswer(event, proj, headers);
++  }
+   if (method === 'POST' && subPath === '/auth/code') {   /* relay request 10: the emailed code */
+     if (!proj) return respond(404, { error: 'UNKNOWN_PROJECT' });
+     if (!process.env.AUTH_SECRET) return respond(500, { error: 'NO_AUTH_SECRET', message: 'AUTH_SECRET is not set on the function.' });
+@@ -2654,7 +2889,9 @@
+   const isAsk = subPath === '/ask';
+   const isBreakglass = /^\/breakglass(\/[A-Za-z0-9-]+)?$/.test(subPath), isActivity = subPath === '/activity', isUsage = subPath === '/ask-usage';
+   const isIdeaFile = subPath === '/ideas/file';   /* relay request 10: an idea's attachment, for administrators */
+-  if (!dataMatch && !potentialMatch && !isFacilitators && !configMatch && !commitMatch && !fileMatch && !isAccess && !isAsk && !isBreakglass && !isActivity && !isUsage && !isIdeaFile) return respond(404, { error: 'NOT_FOUND' });
++  const isGpVotes = subPath === '/group-poll/votes';   /* relay request 12: Huddle's answers, for each poll's own organizer */
++  if (isGpVotes && (proj.key !== GP_PROJECT || !proj.groupPolls)) return respond(404, { error: 'NOT_FOUND' });
++  if (!dataMatch && !potentialMatch && !isFacilitators && !configMatch && !commitMatch && !fileMatch && !isAccess && !isAsk && !isBreakglass && !isActivity && !isUsage && !isIdeaFile && !isGpVotes) return respond(404, { error: 'NOT_FOUND' });
+   if (configMatch && !CONFIG_FILES[configMatch[1]]) return respond(404, { error: 'NOT_FOUND' });
+ 
+   const who = await authenticate(headers, repo, branch);
+@@ -2696,6 +2933,7 @@
+ 
+   if (isAsk) return method === 'POST' ? askRoute(proj, who, event) : respond(405, { error: 'METHOD' });
+   if (isBreakglass) return breakGlass(method, subPath, event, who);
++  if (isGpVotes) return method === 'GET' ? gpVotes(proj, who) : respond(405, { error: 'METHOD' });
+   if (isIdeaFile) return proj.key !== IDEA_PROJECT ? respond(404, { error: 'NOT_FOUND' }) : method === 'GET' ? ideaFile(event, proj, who) : respond(405, { error: 'METHOD' });
+   if (isActivity) return method === 'GET' ? activity(event, who) : respond(405, { error: 'METHOD' });
+   if (isUsage) return method === 'GET' ? askUsage(who) : respond(405, { error: 'METHOD' });
