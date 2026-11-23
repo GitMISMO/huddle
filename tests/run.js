@@ -134,6 +134,17 @@ const server = http.createServer((req, res) => {
     expect(!s.errs.length, s.errs.join('\n')); await s.close();
   });
 
+  /* 6b. Delete for good, after a confirmation */
+  await check('Delete removes a poll for good after asking', async () => {
+    const s = await open('index.html#p=demo2abcde'), p = s.page; await p.waitForTimeout(300);
+    await p.click('#mp-pane .panel-h .btn:has-text("Delete")'); await p.waitForTimeout(200);
+    expect((await p.textContent('.dlg')).includes('can’t be undone'), 'no warning before deleting');
+    await p.click('.dlg-f .btn >> nth=0'); await p.waitForTimeout(300);
+    const gone = await p.evaluate(() => !window.__polls.searchable().some(x => x.id === 'demo2abcde'));
+    expect(gone, 'the poll is still there after Delete');
+    expect(!s.errs.length, s.errs.join('\n')); await s.close();
+  });
+
   /* 7. The page people answer on: their own time zone, three answers, send, and the edit link comes back */
   await check('Answering a poll works on a phone', async () => {
     const s = await open('poll.html', { width: 390 }), p = s.page; await p.waitForTimeout(500);

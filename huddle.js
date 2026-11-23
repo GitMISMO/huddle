@@ -172,7 +172,7 @@ var DB = { docs: {}, sha: null, loaded: false, pending: {}, at: 0, error: '' };
 var VOTES = { docs: {}, loaded: false, at: 0, off: false, error: '' };
 var HEALTH = { ready: null, readyAt: 0, lastSave: 0, lastSaveError: '' };
 function polls() { var d = Object.assign({}, DB.docs, DB.pending); return Object.keys(d).map(function (k) { return d[k]; }).filter(Boolean); }
-function getPoll(id) { return DB.pending[id] || DB.docs[id] || null; }
+function getPoll(id) { return (id in DB.pending ? DB.pending[id] : DB.docs[id]) || null; }
 function isMine(p) { return String(p.owner || '').toLowerCase() === me().email; }
 function saveState(text, bad) { var s = $('#savestate'); if (s) { s.textContent = text || ''; s.className = 'savestate' + (bad ? ' bad' : ''); } }
 function loadPolls() {
@@ -229,7 +229,7 @@ function flush() {
     /* read the file as it is now and lay this page's changes over it, so a poll saved elsewhere in the meantime is kept */
     return call('/data/polls', 'GET').then(function (b) {
       var docs = Object.assign({}, (b && b.data && b.data.docs) || {});
-      Object.keys(sending).forEach(function (id) { docs[id] = sending[id]; });
+      Object.keys(sending).forEach(function (id) { if (sending[id] === null) delete docs[id]; else docs[id] = sending[id]; });   /* null = deleted for good */
       return call('/data/polls', 'PUT', { content: { docs: docs }, sha: (b && b.sha) || null });
     }).then(function (res) {
       DB.docs = (res && res.data && res.data.docs) || DB.docs; DB.sha = (res && res.sha) || DB.sha;
@@ -583,6 +583,7 @@ function renderPane() {
     ma.appendChild(btn('Duplicate', ICON.dup, 'ghost sm', function () { duplicate(p); }));
     if (s !== 'archived') ma.appendChild(btn('Archive', ICON.box, 'ghost sm', function () { var q = clone(p); q.archived = true; put(q, 'Archived the poll'); closePane(); toast('Archived. Find it under Archived to bring it back.'); }));
     else ma.appendChild(btn('Bring Back', ICON.undo, 'ghost sm', function () { var q = clone(p); q.archived = false; put(q, 'Brought the poll back from the archive'); }));
+    ma.appendChild(btn('Delete', ICON.x, 'danger sm', function () { deletePoll(p); }));
   }
   b.appendChild(meta);
   if ((p.log || []).length) {
@@ -766,6 +767,16 @@ function pasteList(done) {
     });
     done(out); return true;
   }]]);
+}
+/* Delete for good (Jonna, Nov 22, 2026). Archive stays the gentle choice; this one can't be undone. */
+function deletePoll(p) {
+  if (!canEdit()) { toast('You can look at Huddle but not change it. Ask Jonna for Edit access.'); return; }
+  var n = everyone(p).length;
+  ask('Delete This Poll?', '<b>' + esc(p.title || 'Untitled poll') + '</b><br><br>The poll' + (n ? ' and its ' + plural(n, 'answer') : '') + ' are removed for good, and its link stops working. This can’t be undone. To put it away instead, use <b>Archive</b>.', 'Delete for Good', function () {
+    closePane();
+    if (PREVIEW) { delete DB.docs[p.id]; delete DB.pending[p.id]; render(); toast('Poll deleted.'); return; }
+    DB.pending[p.id] = null; keepUnsaved(); render(); saveState('Saving…'); schedule(); toast('Poll deleted.');
+  }, true);
 }
 function duplicate(p) {
   var q = clone(p), u = me();
@@ -1148,7 +1159,7 @@ function renderHelp(app) {
   '<h2>Remind People</h2><p>If you added people under People Invited, <b>Remind Those Waiting</b> opens an Outlook email to just the people who haven’t answered. Huddle knows someone has answered when they used their personal link or answered with the same email address.</p>' +
   '<h2>Pick the Time and Send the Invite</h2><p>Press <b>Pick</b> under the time you want and confirm. The poll closes and anyone who opens it sees the chosen time. Then press <b>Create Outlook Invite</b>: Outlook on the web opens a new meeting with the title, time, location and everyone who answered or was invited already on it. Add your Zoom link and press Send. On classic Outlook, use <b>Download Invite (.ics)</b> and open the file instead. <b>Email Everyone the Time</b> is optional. Changed your mind? <b>Pick a Different Time</b>. Coming Up, on the right, shows scheduled meetings and flags any whose invite hasn’t been sent.</p>' +
   '<h2>Settings</h2><ul><li><b>Allow “If Need Be” Answers</b>: a third answer, for times that would work if they have to.</li><li><b>Hide Answers From Each Other</b>: only you see who answered what. People still see which times are full.</li><li><b>One Choice per Person</b> and <b>Limit People per Time</b>: for sign-ups, like booking office-hours slots; a full time can’t be picked by anyone else.</li><li><b>Ask for Email Address</b>: required, optional or not asked. Emails let the invite go to everyone who answered.</li><li><b>Allow Comments</b>: people can leave you a note.</li><li><b>Close Automatically</b>: no new answers after the end of that day.</li><li><b>Email Me When Someone Answers</b>: on unless you turn it off.</li></ul><p>Change settings, times or people any time with <b>Edit Poll</b>. Taking a time off that people already answered asks first, because their answers to it go too.</p>' +
-  '<h2>Close, Reopen, Duplicate, Archive</h2><p><b>Close Poll</b> stops new answers; <b>Reopen Poll</b> starts them again. <b>Duplicate</b> starts a new poll from this one (times already past are left off, and invited people get new personal links). <b>Archive</b> puts a poll away; find it under Archived and press <b>Bring Back</b>. Nothing in Huddle is ever deleted.</p>' +
+  '<h2>Close, Reopen, Duplicate, Archive, Delete</h2><p><b>Close Poll</b> stops new answers; <b>Reopen Poll</b> starts them again. <b>Duplicate</b> starts a new poll from this one (times already past are left off, and invited people get new personal links). <b>Archive</b> puts a poll away; find it under Archived and press <b>Bring Back</b>. <b>Delete</b> removes a poll and its answers for good and its link stops working; it asks first, and it can’t be undone, so use Archive when you might want it again.</p>' +
   '<h2>My Polls</h2><p>The boxes across the top count your open polls, polls with new answers, polls with answers whose time isn’t picked yet, and scheduled meetings; click one to show just those. The buttons under them filter the same way. At a Glance says what needs you first.</p>' +
   '<h2>Admin Dashboard (Jonna and Vanessa)</h2><p>Every poll, from everyone, for support. By Organizer shows who is using Huddle: their open and scheduled polls, how many answers they’ve had, and when they last used it. Click any poll to open it; changes you make there are saved to that person’s poll. Your own My Polls still shows only your own.</p>' +
   '<h2>Who Sees What</h2><p>Huddle knows you by your sign-in and shows you only the polls you made. Other facilitators and staff don’t see them. Jonna and Vanessa see every poll on the Admin Dashboard. People answering see the poll as described above; never anyone’s email address.</p>' +
@@ -1164,7 +1175,7 @@ function renderHelp(app) {
   '<tr><td>Connections Map</td><td>Every hand-off above is written down in the MISMO Connections Map.</td></tr>' +
   '</tbody></table>' +
   '<h2>If Something’s Wrong</h2><p><b>System Health</b> shows whether saving, answering through links and reading answers are working, and when they last ran. If a change hasn’t saved, it’s kept in your browser and tried again; the top bar says so. Questions: Jonna Critchley.</p>' +
-  '<h2>For Whoever Maintains Huddle</h2><p>The developer guide is DEVELOPING.md in the GitMISMO/huddle repository: files, data shapes, relay routes, building, the twelve automatic checks and publishing (GitHub publishes the site only after every check passes).</p>' +
+  '<h2>For Whoever Maintains Huddle</h2><p>The developer guide is DEVELOPING.md in the GitMISMO/huddle repository: files, data shapes, relay routes, building, the thirteen automatic checks and publishing (GitHub publishes the site only after every check passes).</p>' +
   '<p class="muted small">Version ' + esc(BUILD) + '</p></div>';
   app.appendChild(h);
 }

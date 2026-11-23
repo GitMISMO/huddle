@@ -56,7 +56,7 @@ says so on System Health and organizers type answers in by hand. The patch and i
 
 ## Checks and Publishing
 
-Every upload to `main` runs twelve checks (`tests/`, `npm test`); GitHub publishes the site only if they all pass
+Every upload to `main` runs thirteen checks (`tests/`, `npm test`); GitHub publishes the site only if they all pass
 (`.github/workflows/checks.yml`). See `tests/README.md`.
 
 ## Updating

@@ -61,8 +61,11 @@ The page never writes `votes/votes.json`, so a save from here can never land on 
 reason the Scheduler's guest links shipped switched off). An expired sign-in brings up "Sign in to finish saving" and
 the same save goes again.
 
-**Archive, never delete.** Polls are archived (`archived:true`) and brought back; answers are taken off with
-`hiddenVoters` and brought back. Nothing in Huddle deletes.
+**Archive first; Delete only on purpose.** Polls are archived (`archived:true`) and brought back; answers are taken off
+with `hiddenVoters` and brought back. **Delete** (Jonna's decision, Nov 22, 2026) removes a poll from `data/polls.json`
+for good after a confirmation: the page queues the poll as `null` in its pending changes and the save drops it from the
+file. Its link then answers 404. Its answers stay in `votes/votes.json` (the page can't write that file) but nothing
+shows them once the poll is gone; GitHub's history of `huddle-data` still holds the deleted poll if it's ever needed.
 
 ## Links
 
@@ -111,7 +114,7 @@ facilitators are added by name. The tool is listed in `GitMISMO.github.io/assets
 
 1. Change the sources (`index.src.html`, `poll.src.html`, `huddle.js`, `huddle.css`, `rail.js`).
 2. `python3 build.py`.
-3. `npm test` (twelve checks; `tests/README.md`).
+3. `npm test` (thirteen checks; `tests/README.md`).
 4. Add a line to `CHANGELOG.md`.
 5. Upload to `main`. GitHub runs **Huddle Checks and Publish**: if every check passes it publishes the site; if one fails
    the site stays on the version before. Emergency only: Actions > Huddle Checks and Publish > Run workflow > Skip the checks.
@@ -134,5 +137,7 @@ calendar button beside them; explicit Save; Chicago title case on headings and l
   automatic like the Scheduler, reading no calendars.
 - Nov 22, 2026: everyone sees only their own polls, by sign-in; Jonna and Vanessa see everything on an Admin Dashboard.
 - Nov 22, 2026: named Huddle (was Meeting Polls during the build); repositories `huddle` and `huddle-data`.
+- Nov 22, 2026: organizers (and Jonna and Vanessa from the Admin Dashboard) can Delete a poll for good, after a
+  confirmation; Archive stays the gentle choice.
 - Nov 22, 2026: access for staff (administrators) and the facilitators Erin Bittenbender, Kellie Stoll, Meghan
   Tidgewell, Leeann Walker, Kathryn Williams and Tessa Bocanegra.
