@@ -375,8 +375,7 @@ function renderList(app, all) {
   });
   if (!shown.length) {
     var e = el('div', 'mp-empty');
-    e.innerHTML = list.length ? '<b>Nothing here.</b> Pick another view above, or start a new poll.' : '<b>No polls yet.</b> Start one: pick a few times, send the link, and see who can make it.';
-    var b2 = el('button', 'btn', ICON.plus + ' New Poll'); b2.onclick = function () { go('new'); }; e.appendChild(b2);
+    e.innerHTML = list.length ? '<span><b>Nothing here.</b> Pick another view above, or start a new poll with New Poll at the top.</span>' : '<span><b>No polls yet.</b> Press New Poll at the top to pick a few times, send the link, and see who can make it.</span>';
     var sp = el('div', 'mp-split'); sp.appendChild(e); sp.appendChild(sideColumn(list)); app.appendChild(sp); return;
   }
   var split = el('div', 'mp-split'), box = el('div', 'mp-list');
