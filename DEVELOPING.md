@@ -114,7 +114,7 @@ facilitators are added by name. The tool is listed in `GitMISMO.github.io/assets
 
 1. Change the sources (`index.src.html`, `poll.src.html`, `huddle.js`, `huddle.css`, `rail.js`).
 2. `python3 build.py`.
-3. `npm test` (thirteen checks; `tests/README.md`).
+3. `npm test` (fourteen checks; `tests/README.md`).
 4. Add a line to `CHANGELOG.md`.
 5. Upload to `main`. GitHub runs **Huddle Checks and Publish**: if every check passes it publishes the site; if one fails
    the site stays on the version before. Emergency only: Actions > Huddle Checks and Publish > Run workflow > Skip the checks.
@@ -133,6 +133,11 @@ calendar button beside them; explicit Save; Chicago title case on headings and l
 Browser tab icon: both pages' `<head>` have exactly one icon line, the shared mismo.org icon
 (`<link rel="icon" type="image/png" sizes="48x48" href="https://resources.mismo.org/assets/favicon-48x48.png">`, CN-030);
 never a copy of the image in this repository and never an app-specific tab icon.
+The browser's Back button (CN-033): `index.src.html` loads the shared `<script src="/assets/back.js"></script>` right
+after the session.js line (never a copy in this repository, never Huddle's own `history.pushState`). Each left-menu page,
+and Help (`data-back-page="help"`), is a Back step; `huddle.js` registers the poll panel and then a dialog with
+`MismoBack.layer` (beside `closePane`), so Back closes the top one first with the same close as its X. Any new panel or
+drawer must be registered there too. The check "Back button" covers it.
 
 ## Decisions
 

@@ -27,6 +27,17 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(p)] || 'application/octet-stream' }); fs.createReadStream(p).pipe(res);
 });
 
+/* The shared Back-button helper (resources.mismo.org/assets/back.js), fetched once from the live site. */
+let BACK = null;
+async function backJs() {
+  if (BACK !== null) return BACK;
+  try {
+    if (process.env.MISMO_BACK) BACK = fs.readFileSync(process.env.MISMO_BACK, 'utf8');
+    else { const r = await fetch('https://resources.mismo.org/assets/back.js'); BACK = r.ok ? await r.text() : ''; }
+  } catch (e) { BACK = ''; }
+  return BACK;
+}
+
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const BASE = 'http://127.0.0.1:' + server.address().port + '/';
@@ -37,6 +48,8 @@ const server = http.createServer((req, res) => {
     page.on('pageerror', e => errs.push(String(e)));
     /* fonts come from Google; offline runs shouldn't fail on them */
     await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    /* the shared Back helper is tested as it is live (MISMO_BACK can point at a local copy instead), as Summit HQ does */
+    await page.route('**/assets/back.js', async r => r.fulfill({ contentType: 'application/javascript', body: await backJs() }));
     await page.addInitScript(t => { try { localStorage.setItem('mismo.portal.theme', t); } catch (e) {} }, theme);
     await page.goto(BASE + url); await page.waitForTimeout(700);
     return { page, errs, close: () => ctx.close() };
@@ -173,6 +186,43 @@ const server = http.createServer((req, res) => {
     const t = await p.textContent('#rail-hits');
     expect(/Pat Lee/.test(t) && /Commercial eNotes/.test(t), 'search for "pat" found: ' + t);
     await s.close();
+  });
+
+  /* 9. The browser's Back button (CN-033): pages are steps, an open panel closes first, the X leaves no step behind */
+  await check('Back button: closes the panel, then returns to the last page', async () => {
+    const s = await open('index.html'), p = s.page;
+    const state = () => p.evaluate(() => ({
+      tab: (document.querySelector('.hq nav button[data-hq][aria-current], [data-back-page][aria-current]') || {}).dataset?.hq || '',
+      pane: !!document.querySelector('#mp-pane.on'), helper: !!window.MismoBack }));
+    expect((await state()).helper, 'the shared Back helper (/assets/back.js) did not load');
+    await p.waitForTimeout(800);
+    const go = async sel => { await p.click(sel); await p.waitForTimeout(700); };
+    const back = async () => { await p.evaluate(() => history.back()); await p.waitForTimeout(900); };
+    const start = (await state()).tab;
+    expect(start === 'mine', 'Huddle should open on My Polls: ' + start);
+    await go('.hq nav button[data-hq="health"]'); await go('.hq nav button[data-hq="new"]');
+    let st = await state(); expect(st.tab === 'new', 'New Poll did not open: ' + JSON.stringify(st));
+    await back(); st = await state(); expect(st.tab === 'health', 'Back from New Poll should land on System Health: ' + JSON.stringify(st));
+    await p.evaluate(() => history.forward()); await p.waitForTimeout(900);
+    st = await state(); expect(st.tab === 'new', 'Forward should go to New Poll again: ' + JSON.stringify(st));
+    await back(); await back(); st = await state(); expect(st.tab === 'mine', 'Back to My Polls: ' + JSON.stringify(st));
+    /* Help, in the foot of the menu, is a page too */
+    await go('#help-btn'); st = await state(); expect(st.tab === 'help', 'Help did not open: ' + JSON.stringify(st));
+    await back(); st = await state(); expect(st.tab === 'mine', 'Back from Help should land on My Polls: ' + JSON.stringify(st));
+    /* a poll's panel: Back closes it and stays on the page */
+    await go('.hq nav button[data-hq="health"]'); await go('.hq nav button[data-hq="mine"]');
+    await p.locator('.mp-row').first().click(); await p.waitForTimeout(900);
+    st = await state(); expect(st.pane, 'a poll did not open in the right-hand panel');
+    await back(); st = await state();
+    expect(!st.pane && st.tab === 'mine', 'Back should close the panel and stay on My Polls: ' + JSON.stringify(st));
+    await back(); st = await state(); expect(st.tab === 'health', 'Back after the panel should go to the page before My Polls: ' + JSON.stringify(st));
+    /* closing the panel with its X leaves no step behind */
+    await go('.hq nav button[data-hq="mine"]');
+    await p.locator('.mp-row').first().click(); await p.waitForTimeout(900);
+    await p.click('#mp-pane .pane-x'); await p.waitForTimeout(900);
+    expect(!(await state()).pane, 'the X did not close the panel');
+    await back(); st = await state(); expect(st.tab === 'health', 'after closing the panel with X, Back should go straight to the page before: ' + JSON.stringify(st));
+    expect(!s.errs.length, s.errs.join('\n')); await s.close();
   });
 
   await browser.close(); server.close();

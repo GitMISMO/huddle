@@ -493,14 +493,22 @@ function openPane(id) {
   var p = getPoll(id); STATE.prevSeen = p ? (SEEN[id] || 0) : 0; if (p) markSeen(p);
   if (location.hash !== '#p=' + id) history.replaceState(null, '', location.pathname + location.search + '#p=' + id);
   render(); requestAnimationFrame(function () { paneEl().classList.add('on'); });
+  if (window.MismoBack) MismoBack.check();
 }
 function closePane() {
   STATE.pane = null; var pn = $('#mp-pane'); if (pn) pn.classList.remove('on');
   if (/^#p=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + (STATE.tab === 'mine' ? '' : '#' + STATE.tab));
   $$('.mp-row.on').forEach(function (r) { r.classList.remove('on'); });
+  if (window.MismoBack) MismoBack.check();
 }
 window.__pane = { close: closePane };
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && STATE.pane && !$('.scrim')) closePane(); });
+/* The browser's Back button (CN-033, the shared /assets/back.js): Back closes what is open first, top layer first,
+   exactly as its own X does, then goes to the last left-menu page. Bottom layer first: the poll panel, then a dialog. */
+if (window.MismoBack) {
+  MismoBack.layer({ isOpen: function () { return !!STATE.pane; }, close: closePane });
+  MismoBack.layer({ isOpen: function () { return !!$('.scrim'); }, close: function () { var x = $$('.scrim .dlg .x'); if (x.length) x[x.length - 1].click(); } });
+}
 
 function renderPane() {
   var p = getPoll(STATE.pane); if (!p) { closePane(); return; }
@@ -1160,6 +1168,7 @@ function renderHelp(app) {
   '<h2>Settings</h2><ul><li><b>Allow “If Need Be” Answers</b>: a third answer, for times that would work if they have to.</li><li><b>Hide Answers From Each Other</b>: only you see who answered what. People still see which times are full.</li><li><b>One Choice per Person</b> and <b>Limit People per Time</b>: for sign-ups, like booking office-hours slots; a full time can’t be picked by anyone else.</li><li><b>Ask for Email Address</b>: required, optional or not asked. Emails let the invite go to everyone who answered.</li><li><b>Allow Comments</b>: people can leave you a note.</li><li><b>Close Automatically</b>: no new answers after the end of that day.</li><li><b>Email Me When Someone Answers</b>: on unless you turn it off.</li></ul><p>Change settings, times or people any time with <b>Edit Poll</b>. Taking a time off that people already answered asks first, because their answers to it go too.</p>' +
   '<h2>Close, Reopen, Duplicate, Archive, Delete</h2><p><b>Close Poll</b> stops new answers; <b>Reopen Poll</b> starts them again. <b>Duplicate</b> starts a new poll from this one (times already past are left off, and invited people get new personal links). <b>Archive</b> puts a poll away; find it under Archived and press <b>Bring Back</b>. <b>Delete</b> removes a poll and its answers for good and its link stops working; it asks first, and it can’t be undone, so use Archive when you might want it again.</p>' +
   '<h2>My Polls</h2><p>The boxes across the top count your open polls, polls with new answers, polls with answers whose time isn’t picked yet, and scheduled meetings; click one to show just those. The buttons under them filter the same way. At a Glance says what needs you first.</p>' +
+  '<h2>The Back Button</h2><p>Your browser’s <b>Back</b> button goes to the last page you were on in Huddle, and closes an open poll or box first. It never undoes a change.</p>' +
   '<h2>Admin Dashboard (Jonna and Vanessa)</h2><p>Every poll, from everyone, for support. By Organizer shows who is using Huddle: their open and scheduled polls, how many answers they’ve had, and when they last used it. Click any poll to open it; changes you make there are saved to that person’s poll. Your own My Polls still shows only your own.</p>' +
   '<h2>Who Sees What</h2><p>Huddle knows you by your sign-in and shows you only the polls you made. Other facilitators and staff don’t see them. Jonna and Vanessa see every poll on the Admin Dashboard. People answering see the poll as described above; never anyone’s email address.</p>' +
   '<h2>If a Link Won’t Open for Someone</h2><p>A few company networks block the service that saves answers. The poll page tells them so and suggests replying to your email with the times that work, or opening the link on their phone using mobile data. Then type their answer in by hand.</p>' +

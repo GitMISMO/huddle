@@ -29,16 +29,17 @@
 (function(){ try { var t = localStorage.getItem('mismo.portal.theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
 /* Preview anywhere but the real site. */
 window.MP_PREVIEW = location.hostname !== 'resources.mismo.org' || /[?&]preview=1\b/.test(location.search);
-window.MP_BUILD = '2026-11-25 15:32 UTC · b57937fc';
+window.MP_BUILD = '2026-11-25 19:40 UTC · 15cb0bc6';
 if (window.MP_PREVIEW) document.documentElement.removeAttribute('data-rs-gate');
 /* the December hat on the logo, as on the Scheduler */
 if (new Date().getMonth() === 11) document.documentElement.setAttribute('data-season', 'december');
 </script>
 <script>if (!window.MP_PREVIEW) document.write('<script src="/assets/session.js"><\/script>');</script>
+<script src="/assets/back.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="huddle.css?v=b57937fc">
+<link rel="stylesheet" href="huddle.css?v=15cb0bc6">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="mismo-logo" viewBox="0 0 708 108"><g transform="translate(0.000000,108.000000) scale(0.100000,-0.100000)" fill="var(--logo-body, #0f314c)"><path d="M5917 1065 c-169 -46 -279 -153 -335 -323 -21 -65 -25 -96 -25 -197
@@ -117,7 +118,7 @@ c57 -33 76 -84 76 -200 0 -116 -19 -167 -76 -200 -32 -19 -52 -20 -294 -20
       <span>System Health</span></button>
   </nav>
   <div class="mast-right">
-    <button class="theme-btn" id="help-btn" type="button" title="Help" data-hq="help">
+    <button class="theme-btn" id="help-btn" type="button" title="Help" data-hq="help" data-back-page="help">
       <svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.5a2.5 2.5 0 113.4 2.4c-.6.3-.9.8-.9 1.4v.5M12 17.2v.1"/></svg>
       <span>Help</span>
     </button>
@@ -129,9 +130,9 @@ c57 -33 76 -84 76 -200 0 -116 -19 -167 -76 -200 -32 -19 -52 -20 -294 -20
   </div>
 </aside>
 <main id="app" aria-live="polite"></main>
-<script src="huddle.js?v=b57937fc"></script>
+<script src="huddle.js?v=15cb0bc6"></script>
 
-<script src="rail.js?v=b57937fc"></script>
+<script src="rail.js?v=15cb0bc6"></script>
 
 </body>
 </html>

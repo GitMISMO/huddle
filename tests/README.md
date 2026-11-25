@@ -1,6 +1,6 @@
 # Huddle checks
 
-`npm test` runs `tests/run.js`: thirteen checks against the pages in PREVIEW mode (made-up polls built into
+`npm test` runs `tests/run.js`: fourteen checks against the pages in PREVIEW mode (made-up polls built into
 huddle.js), so nothing real is read, saved or sent. GitHub runs them on every upload
 (`.github/workflows/checks.yml`) and publishes the site only when they all pass.
 
@@ -18,6 +18,7 @@ huddle.js), so nothing real is read, saved or sent. GitHub runs them on every up
 | Answering works on a phone | The answer page: times load, three answers, send, the edit link is remembered, no sideways scroll |
 | Incomplete link | The plain message when a link is cut short |
 | Search | The rail search finds polls and people |
+| Back button | The browser's Back goes to the last page (Help too), Forward goes again, an open poll panel closes first, and closing it with X leaves no extra step. Serves `/assets/back.js` from the live copy (or `MISMO_BACK=<file>`) |
 
 To run them on your own machine: `npm install`, `npx playwright install chromium`, `npm test`.
 Run one check: `node tests/run.js search`.
