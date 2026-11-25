@@ -130,6 +130,9 @@ buttons, tags and chips (no pills, the checks enforce a 12px maximum radius); no
 followed by the person's other polls, and the side column carries At a Glance, Latest Answers and Coming Up); each
 section is its own page in the left rail; a record opens in the wide right-hand panel; dates are typeable with a
 calendar button beside them; explicit Save; Chicago title case on headings and labels; plain language.
+Browser tab icon: both pages' `<head>` have exactly one icon line, the shared mismo.org icon
+(`<link rel="icon" type="image/png" sizes="48x48" href="https://resources.mismo.org/assets/favicon-48x48.png">`, CN-030);
+never a copy of the image in this repository and never an app-specific tab icon.
 
 ## Decisions
 

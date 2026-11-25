@@ -100,6 +100,7 @@ const server = http.createServer((req, res) => {
   await check('Make a poll, email it, add an answer, pick a time, make the invite', async () => {
     const s = await open('index.html#new'), p = s.page;
     await p.fill('#ed-title', 'Check Poll'); await p.fill('#ed-where', 'Zoom');
+    await p.click('[aria-label="Next week"]'); // next week, so the times are never already past
     await p.click('.mp-col:nth-child(2) .mp-slot[data-m="600"]');
     await p.click('.mp-col:nth-child(4) .mp-slot[data-m="780"]');
     expect(await p.locator('.mp-ochip').count() === 2, 'two times should be offered');

@@ -2,6 +2,7 @@
 
 Newest first.
 
+- 2026-11-25: Browser tab icon now matches mismo.org.
 - 2026-11-22: One New Poll button (top right); the empty list no longer repeats it.
 - 2026-11-22: Delete a poll for good (asks first; Archive is still there for putting one away).
 - 2026-11-22: Until answering online is live, a poll link says so and asks people to reply to the organizer's email, instead of saying the link doesn't match a poll.
