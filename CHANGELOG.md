@@ -2,6 +2,7 @@
 
 Newest first.
 
+- 2026-11-26: Masthead matches the other MISMO tools.
 - 2026-11-25: The browser's Back button goes to the last page you were on and closes an open poll or box first; it never undoes a change.
 - 2026-11-25: Browser tab icon now matches mismo.org.
 - 2026-11-22: One New Poll button (top right); the empty list no longer repeats it.

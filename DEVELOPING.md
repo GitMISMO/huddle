@@ -133,6 +133,11 @@ calendar button beside them; explicit Save; Chicago title case on headings and l
 Browser tab icon: both pages' `<head>` have exactly one icon line, the shared mismo.org icon
 (`<link rel="icon" type="image/png" sizes="48x48" href="https://resources.mismo.org/assets/favicon-48x48.png">`, CN-030);
 never a copy of the image in this repository and never an app-specific tab icon.
+Masthead (CN-053): Certification Management's, to the pixel, on both pages: a 68px navy bar (`--hq-h:68px`; padding
+13px 22px), the logo box 9px 13px with 5px corners and the logo 24px tall, 14px gaps, a 1px divider 42px tall, the name
+at 16px/500 in #94c8e9. The rail, the poll panel and anything sticky line up from `var(--hq-h)`, never a fixed pixel
+value. On phones (520px and under) only the sides and the logo shrink; the bar stays 68px. No December hat here: the
+shared `/assets/holiday.js` (loaded by session.js) does that for every tool.
 The browser's Back button (CN-033): `index.src.html` loads the shared `<script src="/assets/back.js"></script>` right
 after the session.js line (never a copy in this repository, never Huddle's own `history.pushState`). Each left-menu page,
 and Help (`data-back-page="help"`), is a Back step; `huddle.js` registers the poll panel and then a dialog with
